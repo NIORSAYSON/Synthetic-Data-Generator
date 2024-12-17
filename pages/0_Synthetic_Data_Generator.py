@@ -87,14 +87,14 @@ for cls in classes:
 # Sample size and train/test split
 st.sidebar.subheader("Data Settings")
 num_samples = st.sidebar.slider("Number of samples", min_value=500, max_value=50000, value=10000)
-test_split = st.sidebar.slider("Test size (%)", min_value=10, max_value=50, value=20)
+# test_split = st.sidebar.slider("Test size (%)", min_value=10, max_value=50, value=20)
 
-# Calculate train size percentage
-train_split = 100 - test_split
+# # Calculate train size percentage
+# train_split = 100 - test_split
 
-# Display train and test size percentages below the sliders
-st.sidebar.write(f"Train size: {train_split}%")
-st.sidebar.write(f"Test size: {test_split}%")
+# # Display train and test size percentages below the sliders
+# st.sidebar.write(f"Train size: {train_split}%")
+# st.sidebar.write(f"Test size: {test_split}%")
 
 # Store synthetic data in session state
 if "synthetic_data" not in st.session_state:
@@ -120,6 +120,9 @@ def generate_data():
     # Convert to a Pandas DataFrame
     return pd.DataFrame(data)
 
+# Function to convert a DataFrame to CSV
+def convert_df_to_csv(df):
+    return df.to_csv(index=False).encode("utf-8")
 
 # Main display
 st.header("Synthetic Data Generator", divider='rainbow')
@@ -149,6 +152,7 @@ if synthetic_data is not None:
     X_scaled_df["Class"] = y.values
     combined_data = pd.concat([synthetic_data.reset_index(drop=True), X_scaled_df], axis=1)
     st.divider()
+
     st.write("### Generated Data Sample")
     col1, col2 = st.columns(2)
     with col1:
@@ -157,6 +161,29 @@ if synthetic_data is not None:
     with col2:
         st.write("###### Scaled Data")
         st.dataframe(combined_data.iloc[:, len(features) + 1:])
+    
+    # Download buttons for original and scaled data
+    st.write("### Download Generated Data")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        original_csv = convert_df_to_csv(synthetic_data)
+        st.download_button(
+            label="Download Original Data as CSV",
+            data=original_csv,
+            file_name="original_data.csv",
+            mime="text/csv",
+        )
+
+    with col2:
+        scaled_csv = convert_df_to_csv(X_scaled_df)
+        st.download_button(
+            label="Download Scaled Data as CSV",
+            data=scaled_csv,
+            file_name="scaled_data.csv",
+            mime="text/csv",
+        )
+
     st.divider()
     # EDA Section
     st.write("### Exploratory Data Analysis (EDA)")
@@ -171,8 +198,8 @@ if synthetic_data is not None:
         st.write("**Scaled Data**")
         st.dataframe(X_scaled_df.describe())
     
+    st.divider()
     
-
     col1, col2 = st.columns(2)
     with col1:
         x_feature = st.selectbox("Select feature for X-axis", features, index=0)
@@ -220,8 +247,6 @@ if synthetic_data is not None:
     sns.heatmap(correlation_matrix, annot=True, cmap="coolwarm", ax=ax)
     st.pyplot(fig)
     st.divider()
-
-
 
 else:
     st.write("Configure the settings in the sidebar and click 'Generate Data' to start.")
