@@ -10,6 +10,7 @@ from sklearn.svm import SVC
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.preprocessing import LabelEncoder
 import time
+import pickle
 
 st.set_page_config(
     page_title="Model Training",
@@ -110,6 +111,7 @@ if uploaded_file:
     if data[target_column].dtype == 'object':
         target_encoder = LabelEncoder()
         data[target_column] = target_encoder.fit_transform(data[target_column])
+        
     else:
         target_encoder = None
 
@@ -137,85 +139,133 @@ if uploaded_file:
             default=["Random Forest", "Logistic Regression", "Support Vector Machine"],
         )
 
+    # Show Train Models button
+    if selected_models:  # Ensure models are selected
+       
+        # Initialize Session State for persistence
+        if "trained_models" not in st.session_state:
+            st.session_state.trained_models = {}
+        if "encoder_files" not in st.session_state:
+            st.session_state.encoder_files = {}
+        if "performance" not in st.session_state:
+            st.session_state.performance = []
+        if "confusion_matrices" not in st.session_state:
+            st.session_state.confusion_matrices = {}
+        if "learning_curves" not in st.session_state:
+            st.session_state.learning_curves = {}
+        if "best_model" not in st.session_state:
+            st.session_state.best_model = None
+        if "best_report" not in st.session_state:
+            st.session_state.best_report = None
+        if "best_accuracy" not in st.session_state:
+            st.session_state.best_accuracy = 0
+        if "visualizations_ready" not in st.session_state:
+            st.session_state.visualizations_ready = False  # Tracks if visualizations are ready
 
-    trained_models = {}
-    performance = []
-    best_model = None
-    best_accuracy = 0
-    best_report = None
-    confusion_matrices = {}
-    learning_curves = {}
+        # Training Logic
+        if st.button("Train Models"):
+            with st.spinner("Training models, please wait..."):
+                st.session_state.performance = []  # Reset performance metrics
+                for model_name in selected_models:
+                    start_time = time.time()
+                    if model_name == "Random Forest":
+                        model = RandomForestClassifier(random_state=random_state)
+                    elif model_name == "Logistic Regression":
+                        model = LogisticRegression(random_state=random_state, max_iter=1000)
+                    elif model_name == "Support Vector Machine":
+                        model = SVC(random_state=random_state)
 
-    if st.button("Train Models"):
-        with st.spinner("Training models, please wait..."):
-            for model_name in selected_models:
-                start_time = time.time()
-                if model_name == "Random Forest":
-                    model = RandomForestClassifier(random_state=random_state)
-                elif model_name == "Logistic Regression":
-                    model = LogisticRegression(random_state=random_state, max_iter=1000)
-                elif model_name == "Support Vector Machine":
-                    model = SVC(random_state=random_state)
-                
-                # Train the model
-                model.fit(X_train, y_train)
-                training_time = time.time() - start_time
-                y_pred = model.predict(X_test)
-                accuracy = accuracy_score(y_test, y_pred)
-                precision = precision_score(y_test, y_pred, average='weighted')
-                recall = recall_score(y_test, y_pred, average='weighted')
-                f1 = f1_score(y_test, y_pred, average='weighted')
-                performance.append({
-                    "Model": model_name, 
-                    "Accuracy": accuracy, 
-                    "Precision": precision,
-                    "Recall": recall,
-                    "F1-Score": f1,
-                    "Training Time": training_time
-                })
+                    # Train the model
+                    model.fit(X_train, y_train)
+                    training_time = time.time() - start_time
+                    y_pred = model.predict(X_test)
+                    accuracy = accuracy_score(y_test, y_pred)
+                    precision = precision_score(y_test, y_pred, average='weighted')
+                    recall = recall_score(y_test, y_pred, average='weighted')
+                    f1 = f1_score(y_test, y_pred, average='weighted')
+                    st.session_state.performance.append({
+                        "Model": model_name, 
+                        "Accuracy": accuracy, 
+                        "Precision": precision,
+                        "Recall": recall,
+                        "F1-Score": f1,
+                        "Training Time": training_time
+                    })
 
-                # Store confusion matrix and learning curve
-                confusion_matrices[model_name] = plot_confusion_matrix(y_test, y_pred, model_name, target_encoder)
-                learning_curves[model_name] = plot_learning_curve(model, X, y, model_name)
+                    # Save model in Session State
+                    st.session_state.trained_models[model_name] = model
 
-                # Save best model
-                if accuracy > best_accuracy:
-                    best_model = model_name
-                    best_accuracy = accuracy
-                    best_report = display_classification_report(y_test, y_pred, target_encoder)
-                
-                trained_models[model_name] = model
-        st.write("### Training Results")
-        # Display model comparison
-        st.write("### Model Comparison")
-        performance_df = pd.DataFrame(performance)
-        st.table(performance_df.style.format({
-            "Accuracy": "{:.4f}", 
-            "Precision": "{:.4f}",
-            "Recall": "{:.4f}",
-            "F1-Score": "{:.4f}",
-            "Training Time": "{:.4f}"
-        }))
-        plot_model_performance(performance_df)
+                    # Save target encoder if it exists
+                    if target_encoder and model_name not in st.session_state.encoder_files:
+                        st.session_state.encoder_files[model_name] = pickle.dumps(target_encoder)
 
-        st.write("### Best Model Performance")
-        st.write(f"Best Model: **{best_model}**")
-        st.write(f"Accuracy: **{best_accuracy:.4f}**")
-        st.write(f"Classification Report of {best_model}:")
-        st.dataframe(best_report)
+                    # Store confusion matrix and learning curve
+                    st.session_state.confusion_matrices[model_name] = plot_confusion_matrix(y_test, y_pred, model_name, target_encoder)
+                    st.session_state.learning_curves[model_name] = plot_learning_curve(model, X, y, model_name)
 
-        # Display learning curves
-        st.write("### Learning Curves")
-        lc_cols = st.columns(3)
-        for idx, (model_name, fig) in enumerate(learning_curves.items()):
-            with lc_cols[idx % 3]:
-                st.pyplot(fig)
+                    # Save best model
+                    if accuracy > st.session_state.best_accuracy:
+                        st.session_state.best_model = model_name
+                        st.session_state.best_accuracy = accuracy
+                        st.session_state.best_report = display_classification_report(y_test, y_pred, target_encoder)
 
-        # Display confusion matrices
-        st.write("### Confusion Matrices")
-        cm_cols = st.columns(3)
-        for idx, (model_name, fig) in enumerate(confusion_matrices.items()):
-            with cm_cols[idx % 3]:
-                st.pyplot(fig)
+                st.session_state.visualizations_ready = True  # Mark visualizations as ready
+
+        # Display Results if Visualizations Are Ready
+        if st.session_state.visualizations_ready:
+            st.write("### Training Results")
+
+            # Display model comparison
+            st.write("### Model Comparison")
+            performance_df = pd.DataFrame(st.session_state.performance)
+            st.table(performance_df.style.format({
+                "Accuracy": "{:.4f}", 
+                "Precision": "{:.4f}",
+                "Recall": "{:.4f}",
+                "F1-Score": "{:.4f}",
+                "Training Time": "{:.4f}"
+            }))
+            plot_model_performance(performance_df)
+
+            # Add download buttons for models and scalers
+            st.write("### Download Models and Scalers")
+            for model_name, model in st.session_state.trained_models.items():
+                model_file = pickle.dumps(model)
+                st.download_button(
+                    label=f"Download {model_name} Model",
+                    data=model_file,
+                    file_name=f"model_{model_name.replace(' ', '_').lower()}.pkl",
+                    mime="application/octet-stream"
+                )
+
+            if st.session_state.encoder_files:
+                for model_name, encoder_file in st.session_state.encoder_files.items():
+                    st.download_button(
+                        label=f"Download Target Encoder ({model_name})",
+                        data=encoder_file,
+                        file_name="target_encoder.pkl",
+                        mime="application/octet-stream"
+                    )
+
+            st.write("### Best Model Performance")
+            st.write(f"Best Model: **{st.session_state.best_model}**")
+            st.write(f"Accuracy: **{st.session_state.best_accuracy:.4f}**")
+            st.write(f"Classification Report of {st.session_state.best_model}:")
+            st.dataframe(st.session_state.best_report)
+
+            # Display learning curves
+            st.write("### Learning Curves")
+            lc_cols = st.columns(3)
+            for idx, (model_name, fig) in enumerate(st.session_state.learning_curves.items()):
+                with lc_cols[idx % 3]:
+                    st.pyplot(fig)
+
+            # Display confusion matrices
+            st.write("### Confusion Matrices")
+            cm_cols = st.columns(3)
+            for idx, (model_name, fig) in enumerate(st.session_state.confusion_matrices.items()):
+                with cm_cols[idx % 3]:
+                    st.pyplot(fig)
+
 else:
     st.write("Please upload a dataset to begin.")
