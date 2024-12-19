@@ -83,12 +83,14 @@ def plot_learning_curve(model, X, y, model_name):
 # File upload
 st.sidebar.subheader("Upload Data")
 uploaded_file = st.sidebar.file_uploader("Upload your dataset (CSV format)", type="csv")
+st.sidebar.divider()
 
 if uploaded_file:
     data = pd.read_csv(uploaded_file)
     st.write("### Uploaded Data Sample")
     st.dataframe(data.head())
-
+    st.divider()
+    
     # Sidebar options
     st.sidebar.subheader("Split Settings")
     test_size = st.sidebar.slider("Test size (%)", min_value=10, max_value=50, value=20) / 100
@@ -123,12 +125,14 @@ if uploaded_file:
         st.sidebar.error("The selected target column seems to be continuous. Please ensure the target is categorical for classification.")
         st.stop()
 
+    st.sidebar.divider()
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
 
     st.write("### Data Split Information")
     st.write(f"Train samples: {len(X_train)}, Test samples: {len(X_test)}")
 
+    st.divider()
     st.subheader("Choose Models")
     col1, col2 = st.columns([3, 1])  # Split into two equal columns
 
@@ -214,7 +218,7 @@ if uploaded_file:
         # Display Results if Visualizations Are Ready
         if st.session_state.visualizations_ready:
             st.write("### Training Results")
-
+            st.divider()
             # Display model comparison
             st.write("### Model Comparison")
             performance_df = pd.DataFrame(st.session_state.performance)
@@ -227,26 +231,8 @@ if uploaded_file:
             }))
             plot_model_performance(performance_df)
 
-            # Add download buttons for models and scalers
-            st.write("### Download Models and Scalers")
-            for model_name, model in st.session_state.trained_models.items():
-                model_file = pickle.dumps(model)
-                st.download_button(
-                    label=f"Download {model_name} Model",
-                    data=model_file,
-                    file_name=f"model_{model_name.replace(' ', '_').lower()}.pkl",
-                    mime="application/octet-stream"
-                )
-
-            if st.session_state.encoder_files:
-                for model_name, encoder_file in st.session_state.encoder_files.items():
-                    st.download_button(
-                        label=f"Download Target Encoder ({model_name})",
-                        data=encoder_file,
-                        file_name="target_encoder.pkl",
-                        mime="application/octet-stream"
-                    )
-
+            
+            st.divider()
             st.write("### Best Model Performance")
             st.write(f"Best Model: **{st.session_state.best_model}**")
             st.write(f"Accuracy: **{st.session_state.best_accuracy:.4f}**")
@@ -254,6 +240,7 @@ if uploaded_file:
             st.dataframe(st.session_state.best_report)
 
             # Display learning curves
+            st.divider()
             st.write("### Learning Curves")
             lc_cols = st.columns(3)
             for idx, (model_name, fig) in enumerate(st.session_state.learning_curves.items()):
@@ -261,11 +248,37 @@ if uploaded_file:
                     st.pyplot(fig)
 
             # Display confusion matrices
+            st.divider()
             st.write("### Confusion Matrices")
             cm_cols = st.columns(3)
             for idx, (model_name, fig) in enumerate(st.session_state.confusion_matrices.items()):
                 with cm_cols[idx % 3]:
                     st.pyplot(fig)
 
+
+            # Add download buttons for models and scalers
+            st.divider()
+            st.write("### Download Models and Target Encoders")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                for model_name, model in st.session_state.trained_models.items():
+                    model_file = pickle.dumps(model)
+                    st.download_button(
+                        label=f"Download {model_name} Model",
+                        data=model_file,
+                        file_name=f"model_{model_name.replace(' ', '_').lower()}.pkl",
+                        mime="application/octet-stream"
+                    )
+            with col2:
+                if st.session_state.encoder_files:
+                    for model_name, encoder_file in st.session_state.encoder_files.items():
+                        st.download_button(
+                            label=f"Download Target Encoder ({model_name})",
+                            data=encoder_file,
+                            file_name="target_encoder.pkl",
+                            mime="application/octet-stream"
+                        )
+            st.divider()
 else:
     st.write("Please upload a dataset to begin.")
